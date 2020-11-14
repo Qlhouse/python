@@ -142,11 +142,15 @@ while True:
 
 + `lsock.setblocking(False)` configures the socket in non-blocking mode. Calls made to this socket will no longer *block*. When it's used with `sel.select()`, we can wait for events on one or more sockets and then read and write data when it's ready.    
 
-+ `sel.register()` registers the socket to be monitored with `sel.select()` for 
++ `sel.register()` registers the socket to be monitored with `sel.select()` for events you're interested in. *data* is used to store whatever arbitrary data you'd like along with the socket. It's returned when *select()* returns. We'll use *data* to keep track of what's been sent and received on the socket.     
 
-events you're interested in. *data* is used to store whatever arbitrary data you'd like along with the socket. It's returned when *select()* returns. We'll use *data* to keep track of what's been sent and received on the socket.     
++ `sel.select(timeout=None)` blocks until there are sockets ready for I/O. It returns a list of *(key, events)* tuples, one for each socket. 
 
-+ `sel.select(timeout=None)` blocks until there are sockets ready for I/O. It returns a list of *(key, events)* tuples, one for each socket. *key* is a *SelectorKey* namedtuple that contains a *fileobj* attribute. `key.fileobj` is the socket object, and *mask* is an event mask of the operations that are ready. If `key.data` is *None*, then we know it's from the listening socket and we need to accept the connection. If `key.data` is not *None*, then we know it's a client socket that's already been accepted, and we need to service it.
+  ​	*key* is a *SelectorKey* namedtuple that contains a *fileobj* attribute. `key.fileobj` is the socket object, and *mask* is an event mask of the operations that are ready. 
+
+  ​	If `key.data` is *None*, then we know it's from the listening socket and we need to accept the connection. If `key.data` is not *None*, then we know it's a client socket that's already been accepted, and we need to service it.
+
+
 
 
 
