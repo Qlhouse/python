@@ -48,7 +48,7 @@ The IP address **127.0.0.1** is the standard IPv4 address for the **loopback** i
 
 # Echo Client and Server
 
-+ Echo server
+## Echo server
 
 ```python
 #!/usr/bin/env python3
@@ -72,7 +72,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
 ```
 
-+ Echo Client
+## Echo Client
 
 ```python
 #!/usr/bin/env python3
@@ -107,5 +107,56 @@ print('Received', repr(data))
 
 
 
-# Handling Multiple Connections
+# Multi-Connection Client and Server
+
+## selects()
+
+**selects()** allows you to check for I/O completion on more than one socket. So you can call *select()* to see which sockets have I/O ready for reading and/or writing.    
+
+**Python provides the *selectors* module**. We can create a server and client that handles multiple connections using a *selector* object from the *selectors* module.    
+
+## Multiple-Connection Server
+
+```python
+import selectors
+
+sel = selectors.DefaultSelector()
+# ...
+# set up the listening socket
+lsock = socket.socket(socket.AF_INET, socket.SOC_STREAM)
+lsock.bind(host, port)
+lsock.listen()
+print('listening on', (host, port))
+lsock.setblocking(False)
+sel.register(lsock, selectors.EVENT_READ, data=None)
+# event loop
+while True:
+    events = sel.select(tiemout=None)
+    for key, mask in events:
+        if key.data is None:
+            accept_wrapper(key.fileobj)
+        else:
+            service_connection(key, mask)
+
+```
+
++ `lsock.setblocking(False)` configures the socket in non-blocking mode. Calls made to this socket will no longer *block*. When it's used with `sel.select()`, we can wait for events on one or more sockets and then read and write data when it's ready.    
+
++ `sel.register()` registers the socket to be monitored with `sel.select()` for 
+
+events you're interested in. *data* is used to store whatever arbitrary data you'd like along with the socket. It's returned when *select()* returns. We'll use *data* to keep track of what's been sent and received on the socket.     
+
++ `sel.select(timeout=None)` blocks until there are sockets ready for I/O. It returns a list of *(key, events)* tuples, one for each socket. *key* is a *SelectorKey* namedtuple that contains a *fileobj* attribute. `key.fileobj` is the socket object, and *mask* is an event mask of the operations that are ready. If `key.data` is *None*, then we know it's from the listening socket and we need to accept the connection. If `key.data` is not *None*, then we know it's a client socket that's already been accepted, and we need to service it.
+
+
+
+
+
+
+
+
+
+
+
+
 
