@@ -118,35 +118,25 @@ print('Received', repr(data))
 ## Multi-Connection Server
 
 ```python
+#!/usr/bin/env python3
+
+import sys
+import socket
 import selectors
+import types
 
 sel = selectors.DefaultSelector()
-# ...
-# set up the listening socket
-lsock = socket.socket(socket.AF_INET, socket.SOC_STREAM)
-lsock.bind(host, port)
-lsock.listen()
-print('listening on', (host, port))
-lsock.setblocking(False)
-sel.register(lsock, selectors.EVENT_READ, data=None)
 
-# event loop
-while True:
-    events = sel.select(tiemout=None)
-    for key, mask in events:
-        if key.data is None:
-            accept_wrapper(key.fileobj)
-        else:
-            service_connection(key, mask)
 
 def accept_wrapper(sock):
-    conn, addr = sock.accept()  #Should be ready to read
-    print('accepted connection from', addr)
+    conn, addr = sock.accept()  # Should be ready to read
+    print("accepted connection from", addr)
     conn.setblocking(False)
-    data = types.SimpleNamespace(addr=addr, inb=b'', out=b'')
-    events = selectors.EVENT_READ | selectors.EVENT.WRITE 
+    data = types.SimpleNamespace(addr=addr, inb=b"", outb=b"")
+    events = selectors.EVENT_READ | selectors.EVENT_WRITE
     sel.register(conn, events, data=data)
-    
+
+
 def service_connection(key, mask):
     sock = key.fileobj
     data = key.data
@@ -154,16 +144,41 @@ def service_connection(key, mask):
         recv_data = sock.recv(1024)  # Should be ready to read
         if recv_data:
             data.outb += recv_data
-	     else:
+        else:
             print("closing connection to", data.addr)
             sel.unregister(sock)
             sock.close()
-            
     if mask & selectors.EVENT_WRITE:
         if data.outb:
-            print('echoing', repr(data.outb), 'to', data.addr)
-            sent = sock.send(data.outb)   # Should be ready to write
+            print("echoing", repr(data.outb), "to", data.addr)
+            sent = sock.send(data.outb)  # Should be ready to write
             data.outb = data.outb[sent:]
+
+
+if len(sys.argv) != 3:
+    print("usage:", sys.argv[0], "<host> <port>")
+    sys.exit(1)
+
+host, port = sys.argv[1], int(sys.argv[2])
+lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+lsock.bind((host, port))
+lsock.listen()
+print("listening on", (host, port))
+lsock.setblocking(False)
+sel.register(lsock, selectors.EVENT_READ, data=None)
+
+try:
+    while True:
+        events = sel.select(timeout=None)
+        for key, mask in events:
+            if key.data is None:
+                accept_wrapper(key.fileobj)
+            else:
+                service_connection(key, mask)
+except KeyboardInterrupt:
+    print("caught keyboard interrupt, exiting")
+finally:
+    sel.close()
 ```
 
 + `lsock.setblocking(False)` configures the socket in non-blocking mode. Calls made to this socket will no longer *block*. When it's used with `sel.select()`, we can wait for events on one or more sockets and then read and write data when it's ready.    
@@ -195,30 +210,113 @@ def service_connection(key, mask):
 
 
 ```python
-messages = [b'Message 1 from client.', b'Message 2 from client.']
+#!/usr/bin/env python3
+
+import sys
+import socket
+import selectors
+import types
+
+sel = selectors.DefaultSelector()
+messages = [b"Message 1 from client.", b"Message 2 from client."]
+
 
 def start_connections(host, port, num_conns):
     server_addr = (host, port)
     for i in range(0, num_conns):
         connid = i + 1
-        print('starting connection', connid, 'to', server_addr)
+        print("starting connection", connid, "to", server_addr)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setblocking(False)
         sock.connect_ex(server_addr)
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
-        data = types.SimpleNamespace(connid=connid,
-                                     msg_total=sum(len(m) for m in messages),
-                                     recv_total=0,
-                                     messages=list(messages),
-                                     outb=b'')
-        sel.register(sock, events, data)
-        
+        data = types.SimpleNamespace(
+            connid=connid,
+            msg_total=sum(len(m) for m in messages),
+            recv_total=0,
+            messages=list(messages),
+            outb=b"",
+        )
+        sel.register(sock, events, data=data)
+
+
 def service_connection(key, mask):
-    
+    sock = key.fileobj
+    data = key.data
+    if mask & selectors.EVENT_READ:
+        recv_data = sock.recv(1024)  # Should be ready to read
+        if recv_data:
+            print("received", repr(recv_data), "from connection", data.connid)
+            data.recv_total += len(recv_data)
+        if not recv_data or data.recv_total == data.msg_total:
+            print("closing connection", data.connid)
+            sel.unregister(sock)
+            sock.close()
+    if mask & selectors.EVENT_WRITE:
+        if not data.outb and data.messages:
+            data.outb = data.messages.pop(0)
+        if data.outb:
+            print("sending", repr(data.outb), "to connection", data.connid)
+            sent = sock.send(data.outb)  # Should be ready to write
+            data.outb = data.outb[sent:]
+
+
+if len(sys.argv) != 4:
+    print("usage:", sys.argv[0], "<host> <port> <num_connections>")
+    sys.exit(1)
+
+host, port, num_conns = sys.argv[1:4]
+start_connections(host, int(port), int(num_conns))
+
+try:
+    while True:
+        events = sel.select(timeout=1)
+        if events:
+            for key, mask in events:
+                service_connection(key, mask)
+        # Check for a socket being monitored to continue.
+        if not sel.get_map():
+            break
+except KeyboardInterrupt:
+    print("caught keyboard interrupt, exiting")
+finally:
+    sel.close()
 ```
 
-+ *num_conns* is read from the command-line, which is the number of connections to create to the server. Each socket is set to non-blocking mode.    
-+ `connect_ex()` is used instead of `connect()` since `connect()` would immediately raise a *BlockingIOError* exception. `connect_ex()` initially returns an error indicator, `error.EINPROGRESS`, instead of raising an exception while the connection is in progress. Once the connection is completed, the socket is ready for reading and writing and is returned as such by `select()`.
++ `start_connections(host, port, num_conns)`
+  + *num_conns* is read from the command-line, which is the number of connections to create to the server. Each socket is set to non-blocking mode.    
+  + `connect_ex()` is used instead of `connect()` since `connect()` would immediately raise a *BlockingIOError* exception. `connect_ex()` initially returns an error indicator, `error.EINPROGRESS`, instead of raising an exception while the connection is in progress. Once the connection is completed, the socket is ready for reading and writing and is returned as such by `select()`.    
++ `service_connection(key, mask)`
+
+
+
+# Application Client and Server
+
+
+
+When using TCP, you're reading from a continuous stream of bytes.    
+
+When bytes arrive at your socket, there are network buffers involved. Once you've read them, they need to be saved somewhere. Calling `recv()` again reads the next stream of bytes available from the socket.    
+
+What this means is that you'll be reading from the socket in *chunks*. You need to call `recv()` and save the data in a buffer until you've read enough bytes to have a complete message that makes sense to your application.    
+
+It's up to you to define and keep track of where the message boundaries are. As far as the TCP sockets is connected, it's just sending and receiving raw bytes to and from the network. It knows nothing about what those raw bytes mean.    
+
+This bring us to define an application-layer protocol. What's an application-layer protocol? Put simply, your application will send and receive messages. These messages are application's protocol.    
+
+In other words, the length and format you choose for these messages define the semantics and behavior of your application. When you're reading bytes with `recv()`, you need to keep up with how many bytes were read and figure out where the message boundaries are.    
+
+How is this done? One way is to always send fixed-length messages. If you're always the same size, then it's easy. When you've read that number of bytes into a buffer, then you know you have one complete message.    
+
+However, using fixed-length message is inefficient for small messages where you'd need to use padding to fill them out. Also, you're still left with the problem of what to do about data that doesn't fit into one message.    
+
+Approach to this is that prefix messages with a header that includes the content length as well as any other fields we need. By doing this, we'll only need to keep up with the header. Once we've read the header, we can process it to determine the length of the message's content and then read that number of bytes to consume it.    
+
+
+
+
+
+
 
 
 
