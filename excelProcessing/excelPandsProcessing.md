@@ -49,5 +49,5 @@ data = pd.read_excel('path_to_file.xls', ['Sheet1', 'Sheet2'],
 
 ## Reading a MultiIndex
 
-
+`read_excel` can read a `MultiIndex` index, by passing a list of columns to `index_col` and a `MultiIndex` column by passing a list of rows to header. 
 
