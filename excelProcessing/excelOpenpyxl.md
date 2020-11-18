@@ -110,6 +110,13 @@ A **Product** has:
 
 The **Review** has a few more fields:
 
++ ID
++ Customer ID
++ Stars
++ Headline
++ Body
++ Date
+
 
 
 
