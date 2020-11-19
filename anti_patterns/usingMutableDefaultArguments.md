@@ -20,3 +20,13 @@ def append_to(element, to=[]):
 
 # What You Should Do Instead
 
+Create a new object each time the function is called, by using a default arg to signal that no argument was provided (**None** is often a good choice).    
+
+```python
+def append_to(element, to=None):
+    if to is None:
+        to = []
+    to.append(element)
+    return to
+```
+
