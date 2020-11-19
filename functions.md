@@ -1,4 +1,51 @@
+# What is a Function
+
+
+
+# Usages of Function
+
+> In Python, functions are **first-class citizens**. This means that they are at the same level of any other object (integers, strings, lists, modules, and so on). You can dynamically create or destroy them, pass them to other functions, return them as values, and so forth.
+
+
+
+# Inner Function
+
+
+
+## Encapsulation
+
+Using inner functions to protect them from everything happening outside of the function, meaning that they are hidden from the global scope.    
+
+```python
+def factorial(number):
+
+    # Error handling
+    if not isinstance(number, int):
+        raise TypeError("Sorry. 'number' must be an integer.")
+    if not number >= 0:
+        raise ValueError("Sorry. 'number' must be zero or positive.")
+
+    def inner_factorial(number):
+        if number <= 1:
+            return 1
+        return number*inner_factorial(number-1)
+    return inner_factorial(number)
+
+# Call the outer function.
+print(factorial(4))
+```
+
+## Keep it DRY
+
+
+
+
+
 # Closures
+
+A closure is a function object that remembers values in enclosing scopes even if they are not present in memory.     
+
+A closure cause the inner function to remember the state of its environment when called. The closure "closes" the local variable on the stack, and this stays around after the stack creation has finished executing.
 
 ## Late Binding Closures
 
